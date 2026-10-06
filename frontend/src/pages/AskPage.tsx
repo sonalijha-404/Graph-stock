@@ -56,6 +56,71 @@ export function AskPage() {
   )
 }
 
+function money(value: number) {
+  const text = `₹${Math.abs(value).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`
+  if (value < 0) return `${text} decline`
+  if (value > 0) return `${text} increase`
+  return text
+}
+
+function ResultTable({ results }: { results: Record<string, unknown>[] }) {
+  if (!results.length) return null
+  const impactRows = results.filter((row) => typeof row.estimated_impact === 'number')
+  if (impactRows.length) {
+    return (
+      <table className="mt-4 w-full border-collapse text-left text-sm">
+        <thead>
+          <tr className="border-b border-slate-700 text-xs uppercase tracking-wide text-slate-500">
+            <th className="py-2 pr-3 font-medium">Customer</th>
+            <th className="py-2 pr-3 font-medium">Portfolio</th>
+            <th className="py-2 font-medium">Estimated impact</th>
+          </tr>
+        </thead>
+        <tbody>
+          {impactRows.map((row) => {
+            const holdings = Array.isArray(row.holdings) ? row.holdings : []
+            const portfolios = holdings
+              .map((item) => (item && typeof item === 'object' ? String((item as { portfolio_id?: string }).portfolio_id ?? '') : ''))
+              .filter(Boolean)
+              .join(', ')
+            return (
+              <tr key={String(row.customer_id ?? row.customer_name)} className="border-b border-slate-800">
+                <td className="py-2 pr-3">{String(row.customer_name ?? '')}</td>
+                <td className="py-2 pr-3 text-slate-400">{portfolios || '—'}</td>
+                <td className="py-2">{money(Number(row.estimated_impact))}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    )
+  }
+  const exposureRows = results.filter((row) => typeof row.sector_exposure_percent === 'number')
+  if (exposureRows.length) {
+    return (
+      <table className="mt-4 w-full border-collapse text-left text-sm">
+        <thead>
+          <tr className="border-b border-slate-700 text-xs uppercase tracking-wide text-slate-500">
+            <th className="py-2 pr-3 font-medium">Customer</th>
+            <th className="py-2 font-medium">Estimated sector exposure</th>
+          </tr>
+        </thead>
+        <tbody>
+          {exposureRows.map((row) => (
+            <tr key={String(row.customer_id ?? row.customer_name)} className="border-b border-slate-800">
+              <td className="py-2 pr-3">{String(row.customer_name ?? '')}</td>
+              <td className="py-2">{Number(row.sector_exposure_percent).toFixed(1)}%</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    )
+  }
+  const names = results.map((row) => String(row.customer_name ?? '')).filter(Boolean)
+  if (!names.length) return null
+  return <p className="mt-3 text-slate-300">{names.join(', ')}</p>
+}
+
 function ResponsePanel({
   response,
   tab,
@@ -83,13 +148,9 @@ function ResponsePanel({
       <div className="p-4 text-sm text-slate-200">
         {tab === 'answer' && (
           <>
-            <p>{response.answer}</p>
+            <p className="whitespace-pre-wrap leading-relaxed">{response.answer}</p>
+            <ResultTable results={response.results} />
             <p className="mt-3 text-xs text-slate-500">{response.disclaimer}</p>
-            {response.results.length > 0 && (
-              <pre className="mt-3 max-h-48 overflow-auto rounded bg-slate-950 p-2 text-xs">
-                {JSON.stringify(response.results, null, 2)}
-              </pre>
-            )}
           </>
         )}
         {tab === 'graph' && (

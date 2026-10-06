@@ -1,4 +1,14 @@
-import type { ChatResponse, Health, Stats, Subgraph } from '../types'
+import type {
+  ChatResponse,
+  CustomerRow,
+  GraphViewMode,
+  Health,
+  PortfolioRow,
+  SectorRow,
+  Stats,
+  StockRow,
+  Subgraph,
+} from '../types'
 
 const BASE = '/api'
 
@@ -18,11 +28,18 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   health: () => request<Health>('/health'),
   stats: () => request<Stats>('/stats'),
+  customers: () => request<CustomerRow[]>('/customers'),
+  portfolios: () => request<PortfolioRow[]>('/portfolios'),
+  stocks: () => request<StockRow[]>('/stocks'),
+  sectors: () => request<SectorRow[]>('/sectors'),
   chat: (question: string) =>
     request<ChatResponse>('/chat', { method: 'POST', body: JSON.stringify({ question }) }),
-  graphStock: (symbol: string) => request<Subgraph>(`/graph/stock/${encodeURIComponent(symbol)}`),
-  graphCustomer: (id: string) => request<Subgraph>(`/graph/customer/${encodeURIComponent(id)}`),
-  graphSector: (name: string) => request<Subgraph>(`/graph/sector/${encodeURIComponent(name)}`),
+  graphStock: (symbol: string, view: GraphViewMode = 'partial') =>
+    request<Subgraph>(`/graph/stock/${encodeURIComponent(symbol)}?view=${view}`),
+  graphCustomer: (id: string, view: GraphViewMode = 'partial') =>
+    request<Subgraph>(`/graph/customer/${encodeURIComponent(id)}?view=${view}`),
+  graphSector: (name: string, view: GraphViewMode = 'partial') =>
+    request<Subgraph>(`/graph/sector/${encodeURIComponent(name)}?view=${view}`),
   impactSimulate: (body: {
     scope: string
     symbol?: string

@@ -16,8 +16,31 @@ from app.llm.classifier import classify_with_llm
 def _format_inr(amount: float) -> str:
     val = abs(amount)
     if val >= 1000:
-        return f"₹{val:,.0f}"
-    return f"₹{val:.2f}"
+        text = f"₹{val:,.0f}"
+    else:
+        text = f"₹{val:.2f}"
+    if amount < 0:
+        return f"{text} estimated decline"
+    if amount > 0:
+        return f"{text} estimated increase"
+    return text
+
+
+def _impact_narrative(subject: str, change_percent: float, results: list[dict[str, Any]], portfolio_count: int | None = None) -> str:
+    """Short lead-in. Per-customer amounts stay in structured results for the table."""
+    ordered = sorted(results, key=lambda row: row.get("estimated_impact", 0))
+    total = sum(float(row.get("estimated_impact", 0)) for row in ordered)
+    direction = "falls" if change_percent < 0 else "rises"
+    scope = f"{len(ordered)} potentially affected customers"
+    if portfolio_count is not None:
+        scope += f" across {portfolio_count} portfolios"
+    largest = ordered[0]
+    return (
+        f"If {subject} {direction} by {abs(change_percent):.0f}%, {scope} have estimated unrealized impact. "
+        f"Combined estimated unrealized impact is {_format_inr(total)}. "
+        f"The largest is {largest.get('customer_name')} at {_format_inr(float(largest.get('estimated_impact', 0)))}. "
+        f"Each customer amount is listed below."
+    )
 
 
 def handle_chat(question: str) -> ChatResponse:
@@ -77,15 +100,8 @@ def handle_chat(question: str) -> ChatResponse:
         rows = impact.rows_from_neo4j(records)
         results, calcs = impact.stock_impact(rows, params["symbol"], params["change_percent"])
         n_portfolios = len({r.portfolio_id for r in rows if r.symbol == params["symbol"]})
-        n_customers = len(results)
         if results:
-            worst = min(results, key=lambda x: x["estimated_impact"])
-            answer = (
-                f"Estimated exposure to {params['symbol']} was found in {n_portfolios} portfolios "
-                f"belonging to {n_customers} customers. "
-                f"The largest estimated unrealized impact is {worst['customer_name']} at "
-                f"{_format_inr(worst['estimated_impact'])}."
-            )
+            answer = _impact_narrative(params["symbol"], params["change_percent"], results, n_portfolios)
         else:
             raise exc.no_results()
 
@@ -110,10 +126,9 @@ def handle_chat(question: str) -> ChatResponse:
         stages.append("impact")
         rows = impact.rows_from_neo4j(records)
         results, calcs = impact.sector_impact(rows, params["sector"], params["change_percent"])
-        answer = (
-            f"A {params['change_percent']}% move in {params['sector']} sector stocks implies "
-            f"estimated unrealized impact across {len(results)} potentially affected customers."
-        )
+        if not results:
+            raise exc.no_results()
+        answer = _impact_narrative(f"the {params['sector']} sector", params["change_percent"], results)
 
     elif intent == "CUSTOMER_EXPOSURE":
         stages.append("impact")

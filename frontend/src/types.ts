@@ -12,10 +12,14 @@ export interface GraphEdge {
   target: string
 }
 
+export type GraphViewMode = 'partial' | 'complete'
+
 export interface Subgraph {
   nodes: GraphNode[]
   edges: GraphEdge[]
   truncated: boolean
+  view?: GraphViewMode
+  node_limit?: number
 }
 
 export interface ChatResponse {
@@ -57,3 +61,38 @@ export interface Health {
   status: string
   neo4j: string
 }
+
+export interface CustomerRow {
+  customer_id: string
+  name: string
+  risk_profile: string
+  country: string
+  portfolios: number
+}
+
+export interface PortfolioRow {
+  portfolio_id: string
+  name: string
+  portfolio_type: string
+  customer_id: string
+  customer_name: string
+  symbols: string[]
+  sectors: string[]
+  value: number
+}
+
+export interface StockRow {
+  symbol: string
+  company_name: string
+  current_price: number
+  sector: string
+  holders: number
+}
+
+export interface SectorRow {
+  name: string
+  stocks: number
+  symbols: string[]
+}
+
+export type CatalogKind = 'customers' | 'portfolios' | 'stocks' | 'sectors'

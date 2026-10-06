@@ -1,4 +1,8 @@
 .env
+backend.log
+frontend.log
+.backend.pid
+.frontend.pid
 .venv/
 venv/
 __pycache__/

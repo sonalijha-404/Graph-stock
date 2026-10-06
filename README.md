@@ -10,30 +10,47 @@ All figures are **synthetic**. Not investment advice.
 - Python 3.12+
 - Node.js 20+
 
-## Quick start
+## Run it again
+
+From the project folder:
 
 ```bash
-# 1. Environment
+./start-demo.sh
+```
+
+Open **http://127.0.0.1:5173**
+
+Stop the UI and API (Neo4j stays up):
+
+```bash
+./stop-demo.sh
+```
+
+The API uses **port 8001** on purpose. Port 8000 is often already taken by other local apps. The UI proxies `/api` to 8001.
+
+## First-time setup
+
+Only needed once on a new machine:
+
+```bash
 cp .env.example .env
-
-# 2. Neo4j
-docker compose up -d neo4j
-
-# 3. Backend
 cd backend
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-python scripts/seed_data.py
-uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
-
-# 4. Frontend (new terminal)
-cd frontend
+cd ../frontend
 npm install
-npm run dev
+cd ..
+./start-demo.sh
 ```
 
-Open http://localhost:5173
+`start-demo.sh` starts Neo4j, seeds the graph if it is empty, then starts the API and UI.
+
+Reload demo data any time:
+
+```bash
+cd backend && source .venv/bin/activate && python scripts/seed_data.py
+```
 
 ## Demo script
 

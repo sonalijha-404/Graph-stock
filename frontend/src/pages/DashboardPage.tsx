@@ -2,8 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import { useApp } from '../context/AppContext'
-import { GraphView } from '../graph/GraphView'
-import type { Stats } from '../types'
+import type { CatalogKind, CustomerRow, PortfolioRow, SectorRow, Stats, StockRow } from '../types'
 
 const SCENARIOS = [
   { label: 'Who owns TCS', question: 'Who owns TCS?' },
@@ -16,9 +15,11 @@ const SCENARIOS = [
 
 export function DashboardPage() {
   const [stats, setStats] = useState<Stats | null>(null)
-  const [preview, setPreview] = useState<Awaited<ReturnType<typeof api.graphStock>> | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [catalog, setCatalog] = useState<CatalogKind | null>(null)
+  const [rows, setRows] = useState<CustomerRow[] | PortfolioRow[] | StockRow[] | SectorRow[]>([])
+  const [listLoading, setListLoading] = useState(false)
   const { setLastResponse, setHighlightSubgraph, setLastQueryMs } = useApp()
   const navigate = useNavigate()
 
@@ -26,10 +27,9 @@ export function DashboardPage() {
     let cancelled = false
     ;(async () => {
       try {
-        const [s, g] = await Promise.all([api.stats(), api.graphStock('TCS')])
+        const s = await api.stats()
         if (!cancelled) {
           setStats(s)
-          setPreview(g)
           setError(null)
         }
       } catch (e) {
@@ -42,6 +42,31 @@ export function DashboardPage() {
       cancelled = true
     }
   }, [])
+
+  async function openCatalog(kind: CatalogKind) {
+    if (catalog === kind) {
+      setCatalog(null)
+      return
+    }
+    setCatalog(kind)
+    setListLoading(true)
+    setError(null)
+    try {
+      if (kind === 'customers') setRows(await api.customers())
+      else if (kind === 'portfolios') setRows(await api.portfolios())
+      else if (kind === 'stocks') setRows(await api.stocks())
+      else setRows(await api.sectors())
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load list')
+      setRows([])
+    } finally {
+      setListLoading(false)
+    }
+  }
+
+  function openInGraph(mode: 'stock' | 'customer' | 'sector', query: string) {
+    navigate('/graph', { state: { mode, query } })
+  }
 
   async function runScenario(question: string) {
     setLoading(true)
@@ -67,15 +92,17 @@ export function DashboardPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-semibold text-white">Dashboard</h1>
-        <p className="text-sm text-slate-400">Live counts and values from Neo4j (synthetic).</p>
+        <p className="text-sm text-slate-400">
+          Live counts from Neo4j. Click Customers, Portfolios, Stocks, or Sectors to open the demo list.
+        </p>
       </div>
       {error && <p className="rounded border border-red-900/50 bg-red-950/30 px-3 py-2 text-sm text-red-300">{error}</p>}
       {stats && (
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <Card title="Customers" value={String(stats.customers)} />
-          <Card title="Portfolios" value={String(stats.portfolios)} />
-          <Card title="Stocks" value={String(stats.stocks)} />
-          <Card title="Sectors" value={String(stats.sectors)} />
+          <Card title="Customers" value={String(stats.customers)} active={catalog === 'customers'} onClick={() => openCatalog('customers')} />
+          <Card title="Portfolios" value={String(stats.portfolios)} active={catalog === 'portfolios'} onClick={() => openCatalog('portfolios')} />
+          <Card title="Stocks" value={String(stats.stocks)} active={catalog === 'stocks'} onClick={() => openCatalog('stocks')} />
+          <Card title="Sectors" value={String(stats.sectors)} active={catalog === 'sectors'} onClick={() => openCatalog('sectors')} />
           <Card title="Total value" value={`₹${stats.total_market_value.toLocaleString('en-IN')}`} />
           <Card
             title="Top sector"
@@ -107,21 +134,172 @@ export function DashboardPage() {
           ))}
         </div>
       </div>
-      {preview && (
-        <div>
-          <h2 className="mb-2 text-sm font-medium text-slate-300">TCS exposure preview</h2>
-          <GraphView data={preview} height={320} />
-        </div>
+      {catalog && (
+        <CatalogPanel
+          kind={catalog}
+          loading={listLoading}
+          rows={rows}
+          onOpenGraph={openInGraph}
+        />
       )}
     </div>
   )
 }
 
-function Card({ title, value }: { title: string; value: string }) {
+function Card({
+  title,
+  value,
+  onClick,
+  active,
+}: {
+  title: string
+  value: string
+  onClick?: () => void
+  active?: boolean
+}) {
+  const className = `rounded-lg border px-4 py-3 text-left ${
+    active ? 'border-sky-500 bg-slate-800' : 'border-slate-700 bg-slate-900/60'
+  } ${onClick ? 'cursor-pointer hover:border-sky-700' : ''}`
+  if (!onClick) {
+    return (
+      <div className={className}>
+        <div className="text-xs uppercase tracking-wide text-slate-500">{title}</div>
+        <div className="mt-1 text-lg font-medium text-white">{value}</div>
+      </div>
+    )
+  }
   return (
-    <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-4 py-3">
+    <button type="button" onClick={onClick} className={className}>
       <div className="text-xs uppercase tracking-wide text-slate-500">{title}</div>
       <div className="mt-1 text-lg font-medium text-white">{value}</div>
+    </button>
+  )
+}
+
+function CatalogPanel({
+  kind,
+  loading,
+  rows,
+  onOpenGraph,
+}: {
+  kind: CatalogKind
+  loading: boolean
+  rows: CustomerRow[] | PortfolioRow[] | StockRow[] | SectorRow[]
+  onOpenGraph: (mode: 'stock' | 'customer' | 'sector', query: string) => void
+}) {
+  const titles: Record<CatalogKind, string> = {
+    customers: 'Customers',
+    portfolios: 'Portfolios',
+    stocks: 'Stocks',
+    sectors: 'Sectors',
+  }
+  return (
+    <div className="rounded-lg border border-slate-700 bg-slate-900/40">
+      <div className="border-b border-slate-800 px-4 py-3 text-sm font-medium text-white">
+        {titles[kind]} · {loading ? '…' : rows.length}
+      </div>
+      <div className="max-h-[28rem] overflow-auto">
+        {loading ? (
+          <p className="px-4 py-3 text-sm text-slate-400">Loading demo data…</p>
+        ) : (
+          <table className="w-full border-collapse text-left text-sm">
+            <thead className="sticky top-0 bg-slate-900 text-xs uppercase tracking-wide text-slate-500">
+              {kind === 'customers' && (
+                <tr>
+                  <th className="px-4 py-2 font-medium">ID</th>
+                  <th className="px-4 py-2 font-medium">Name</th>
+                  <th className="px-4 py-2 font-medium">Risk</th>
+                  <th className="px-4 py-2 font-medium">Portfolios</th>
+                </tr>
+              )}
+              {kind === 'portfolios' && (
+                <tr>
+                  <th className="px-4 py-2 font-medium">Portfolio</th>
+                  <th className="px-4 py-2 font-medium">Customer</th>
+                  <th className="px-4 py-2 font-medium">Sectors</th>
+                  <th className="px-4 py-2 font-medium">Stocks</th>
+                  <th className="px-4 py-2 font-medium">Value</th>
+                </tr>
+              )}
+              {kind === 'stocks' && (
+                <tr>
+                  <th className="px-4 py-2 font-medium">Symbol</th>
+                  <th className="px-4 py-2 font-medium">Company</th>
+                  <th className="px-4 py-2 font-medium">Sector</th>
+                  <th className="px-4 py-2 font-medium">Price</th>
+                  <th className="px-4 py-2 font-medium">Holdings</th>
+                </tr>
+              )}
+              {kind === 'sectors' && (
+                <tr>
+                  <th className="px-4 py-2 font-medium">Sector</th>
+                  <th className="px-4 py-2 font-medium">Stocks</th>
+                  <th className="px-4 py-2 font-medium">Symbols</th>
+                </tr>
+              )}
+            </thead>
+            <tbody>
+              {kind === 'customers' &&
+                (rows as CustomerRow[]).map((row) => (
+                  <tr
+                    key={row.customer_id}
+                    className="cursor-pointer border-t border-slate-800 hover:bg-slate-800/60"
+                    onClick={() => onOpenGraph('customer', row.customer_id)}
+                  >
+                    <td className="px-4 py-2 text-slate-400">{row.customer_id}</td>
+                    <td className="px-4 py-2">{row.name}</td>
+                    <td className="px-4 py-2">{row.risk_profile}</td>
+                    <td className="px-4 py-2">{row.portfolios}</td>
+                  </tr>
+                ))}
+              {kind === 'portfolios' &&
+                (rows as PortfolioRow[]).map((row) => (
+                  <tr key={row.portfolio_id} className="border-t border-slate-800">
+                    <td className="px-4 py-2">
+                      <div>{row.name}</div>
+                      <div className="text-xs text-slate-500">{row.portfolio_id} · {row.portfolio_type}</div>
+                    </td>
+                    <td
+                      className="cursor-pointer px-4 py-2 text-sky-300"
+                      onClick={() => onOpenGraph('customer', row.customer_id)}
+                    >
+                      {row.customer_name}
+                    </td>
+                    <td className="px-4 py-2">{row.sectors.join(', ')}</td>
+                    <td className="px-4 py-2 text-slate-300">{row.symbols.join(', ')}</td>
+                    <td className="px-4 py-2">₹{row.value.toLocaleString('en-IN')}</td>
+                  </tr>
+                ))}
+              {kind === 'stocks' &&
+                (rows as StockRow[]).map((row) => (
+                  <tr
+                    key={row.symbol}
+                    className="cursor-pointer border-t border-slate-800 hover:bg-slate-800/60"
+                    onClick={() => onOpenGraph('stock', row.symbol)}
+                  >
+                    <td className="px-4 py-2">{row.symbol}</td>
+                    <td className="px-4 py-2">{row.company_name}</td>
+                    <td className="px-4 py-2">{row.sector}</td>
+                    <td className="px-4 py-2">₹{row.current_price.toLocaleString('en-IN')}</td>
+                    <td className="px-4 py-2">{row.holders}</td>
+                  </tr>
+                ))}
+              {kind === 'sectors' &&
+                (rows as SectorRow[]).map((row) => (
+                  <tr
+                    key={row.name}
+                    className="cursor-pointer border-t border-slate-800 hover:bg-slate-800/60"
+                    onClick={() => onOpenGraph('sector', row.name)}
+                  >
+                    <td className="px-4 py-2">{row.name}</td>
+                    <td className="px-4 py-2">{row.stocks}</td>
+                    <td className="px-4 py-2 text-slate-300">{row.symbols.join(', ')}</td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        )}
+      </div>
     </div>
   )
 }

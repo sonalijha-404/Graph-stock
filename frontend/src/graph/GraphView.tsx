@@ -18,9 +18,17 @@ type Props = {
   height?: number
   onSelectNode?: (node: GraphNode | null) => void
   filterTypes?: string[]
+  truncatedHint?: string
 }
 
-export function GraphView({ data, highlight, height = 420, onSelectNode, filterTypes }: Props) {
+export function GraphView({
+  data,
+  highlight,
+  height = 420,
+  onSelectNode,
+  filterTypes,
+  truncatedHint,
+}: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const cyRef = useRef<Core | null>(null)
   const [selected, setSelected] = useState<GraphNode | null>(null)
@@ -109,7 +117,9 @@ export function GraphView({ data, highlight, height = 420, onSelectNode, filterT
     <div className="flex flex-col gap-2">
       <div ref={ref} className="rounded-lg border border-slate-700 bg-slate-900/50" style={{ height }} />
       {data.truncated && (
-        <p className="text-xs text-amber-400/90">Partial view — expand or filter to see more nodes.</p>
+        <p className="text-xs text-amber-400/90">
+          {truncatedHint ?? 'Partial view — use Complete view in the explorer to load more nodes.'}
+        </p>
       )}
       {selected && (
         <pre className="max-h-32 overflow-auto rounded border border-slate-700 bg-slate-950 p-2 text-xs text-slate-300">

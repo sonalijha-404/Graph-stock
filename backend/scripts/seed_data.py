@@ -128,25 +128,31 @@ def seed(session):
         )
 
     rng = random.Random(42)
-    used_portfolios = {"P001", "P010", "P011"}
-    used_holdings = {"H001", "H002", "H003", "H010", "H011", "H012"}
-    used_customers = {"C001", "C002"}
+    by_sector: dict[str, list[tuple[str, int]]] = {}
+    for symbol, _company, sector, price in STOCKS:
+        by_sector.setdefault(sector, []).append((symbol, price))
+
+    people = [
+        ("Aarav", "Mehta"), ("Vihaan", "Kapoor"), ("Ananya", "Iyer"), ("Isha", "Banerjee"),
+        ("Kabir", "Malhotra"), ("Meera", "Nambiar"), ("Rohan", "Desai"), ("Sneha", "Kulkarni"),
+        ("Dev", "Chatterjee"), ("Kavya", "Pillai"), ("Arjun", "Reddy"), ("Diya", "Shah"),
+        ("Ishaan", "Bose"), ("Myra", "Gill"), ("Reyansh", "Joshi"), ("Aanya", "Menon"),
+        ("Vivaan", "Rao"), ("Anika", "Dutta"), ("Aditya", "Khanna"), ("Sara", "Qureshi"),
+        ("Krishna", "Patil"), ("Navya", "Hegde"), ("Ayaan", "Chopra"), ("Kiara", "Sethi"),
+        ("Shaurya", "Bhatt"), ("Pari", "Agarwal"), ("Atharv", "Naidu"), ("Anvi", "Kaur"),
+        ("Rudra", "Saxena"), ("Zara", "Fernandes"), ("Neil", "D'Souza"), ("Inaaya", "Shetty"),
+        ("Yash", "Trivedi"), ("Mira", "Chawla"), ("Om", "Bansal"), ("Tara", "Krishnan"),
+        ("Laksh", "Gowda"), ("Aisha", "Ansari"), ("Veer", "Malik"), ("Nisha", "Pandey"),
+        ("Harsh", "Kamat"), ("Rhea", "Lobo"), ("Manav", "Srinivasan"), ("Ira", "Mukherjee"),
+        ("Jay", "Thakur"), ("Sana", "Verghese"), ("Raghav", "Unnikrishnan"), ("Leela", "Bhatt"),
+    ]
 
     portfolio_num = 12
     holding_num = 20
-    customer_num = 3
-
-    first_names = ["Aarav", "Vihaan", "Ananya", "Isha", "Kabir", "Meera", "Rohan", "Sneha", "Dev", "Kavya"]
-    last_names = ["Patel", "Gupta", "Reddy", "Iyer", "Singh", "Khan", "Das", "Menon", "Joshi", "Verma"]
-
-    symbols = [s[0] for s in STOCKS]
-
-    while customer_num <= 50:
-        cid = f"C{customer_num:03d}"
-        if cid in used_customers:
-            customer_num += 1
-            continue
-        name = f"{rng.choice(first_names)} {rng.choice(last_names)} (Demo)"
+    # 48 new customers. The first 24 get two portfolios so the book reaches 75
+    # including Rahul's and Priya's three fixture portfolios.
+    for index, (first, last) in enumerate(people):
+        cid = f"C{index + 3:03d}"
         session.run(
             """
             CREATE (c:Customer {
@@ -154,79 +160,44 @@ def seed(session):
               risk_profile: $risk, country: 'India'
             })
             """,
-            {"cid": cid, "name": name, "risk": rng.choice(RISK)},
+            {"cid": cid, "name": f"{first} {last}", "risk": RISK[index % len(RISK)]},
         )
-        used_customers.add(cid)
-        n_portfolios = rng.randint(1, 2)
-        for _ in range(n_portfolios):
-            while True:
-                pid = f"P{portfolio_num:03d}"
-                portfolio_num += 1
-                if pid not in used_portfolios:
-                    used_portfolios.add(pid)
-                    break
+        portfolio_count = 2 if index < 24 else 1
+        for slot in range(portfolio_count):
+            pid = f"P{portfolio_num:03d}"
+            portfolio_num += 1
+            theme = SECTORS[(index + slot * 3) % len(SECTORS)]
+            ptype = P_TYPES[(index + slot) % len(P_TYPES)]
             session.run(
                 """
                 MATCH (c:Customer {customer_id: $cid})
-                CREATE (p:Portfolio {
-                  portfolio_id: $pid, name: $pname, portfolio_type: $ptype
-                })
+                CREATE (p:Portfolio {portfolio_id: $pid, name: $pname, portfolio_type: $ptype})
                 CREATE (c)-[:OWNS]->(p)
                 """,
-                {
-                    "cid": cid,
-                    "pid": pid,
-                    "pname": f"Portfolio {pid}",
-                    "ptype": rng.choice(P_TYPES),
-                },
+                {"cid": cid, "pid": pid, "pname": f"{first} {theme} {ptype}", "ptype": ptype},
             )
-            for _ in range(rng.randint(2, 5)):
-                while True:
-                    hid = f"H{holding_num:03d}"
-                    holding_num += 1
-                    if hid not in used_holdings:
-                        used_holdings.add(hid)
-                        break
-                sym = rng.choice(symbols)
-                qty = rng.randint(5, 80)
-                abp = rng.randint(100, 5000)
+            theme_stocks = list(by_sector[theme])
+            rng.shuffle(theme_stocks)
+            chosen = theme_stocks[: min(3, len(theme_stocks))]
+            # One holding from a different sector so books are not single-sector clones.
+            other_sectors = [name for name in SECTORS if name != theme]
+            other = rng.choice(by_sector[rng.choice(other_sectors)])
+            if other[0] not in {sym for sym, _ in chosen}:
+                chosen.append(other)
+            for symbol, price in chosen:
+                hid = f"H{holding_num:03d}"
+                holding_num += 1
+                qty = rng.randint(8, 60)
                 session.run(
                     """
                     MATCH (p:Portfolio {portfolio_id: $pid}), (s:Stock {symbol: $sym})
                     CREATE (h:Holding {holding_id: $hid, quantity: $qty, average_buy_price: $abp})
                     CREATE (p)-[:HAS_HOLDING]->(h)-[:HOLDS]->(s)
                     """,
-                    {"hid": hid, "pid": pid, "sym": sym, "qty": qty, "abp": abp},
+                    {"hid": hid, "pid": pid, "sym": symbol, "qty": qty, "abp": round(price * 0.92)},
                 )
-        customer_num += 1
 
-    # Pad to 75 portfolios if needed
-    while len(used_portfolios) < 75:
-        cid = f"C{rng.randint(3, 50):03d}"
-        pid = f"P{portfolio_num:03d}"
-        portfolio_num += 1
-        used_portfolios.add(pid)
-        session.run(
-            """
-            MATCH (c:Customer {customer_id: $cid})
-            CREATE (p:Portfolio {portfolio_id: $pid, name: $pname, portfolio_type: 'Balanced'})
-            CREATE (c)-[:OWNS]->(p)
-            """,
-            {"cid": cid, "pid": pid, "pname": f"Extra {pid}"},
-        )
-        hid = f"H{holding_num:03d}"
-        holding_num += 1
-        sym = rng.choice(symbols)
-        session.run(
-            """
-            MATCH (p:Portfolio {portfolio_id: $pid}), (s:Stock {symbol: $sym})
-            CREATE (h:Holding {holding_id: $hid, quantity: $qty, average_buy_price: $abp})
-            CREATE (p)-[:HAS_HOLDING]->(h)-[:HOLDS]->(s)
-            """,
-            {"hid": hid, "pid": pid, "sym": sym, "qty": 20, "abp": 1000},
-        )
-
-    enforce_guarantees(session, rng, holding_num, symbols)
+    enforce_guarantees(session, rng, holding_num, [s[0] for s in STOCKS])
 
 
 def enforce_guarantees(session, rng, holding_num: int, symbols: list[str]):

@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     backend_port: int = 8000
 
     graph_node_limit: int = 80
+    graph_node_limit_complete: int = 500
     cypher_timeout_seconds: float = 5.0
     sector_exposure_min_percent: float = 40.0
 

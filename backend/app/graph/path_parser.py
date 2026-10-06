@@ -52,12 +52,17 @@ def subgraph_from_paths(path_records: list[dict[str, Any]]) -> dict[str, Any]:
     return {"nodes": list(nodes.values()), "edges": list(edges.values()), "truncated": truncated}
 
 
-def subgraph_from_entity_records(records: list[dict[str, Any]]) -> dict[str, Any]:
+def subgraph_from_entity_records(
+    records: list[dict[str, Any]],
+    node_limit: int | None = None,
+) -> dict[str, Any]:
+    cap = node_limit if node_limit is not None else settings.graph_node_limit
     nodes: dict[str, dict[str, Any]] = {}
     edges: dict[str, dict[str, Any]] = {}
     truncated = False
 
     def ensure_node(label: str, entity) -> str | None:
+        nonlocal truncated
         if entity is None:
             return None
         props = dict(entity.items())
@@ -66,7 +71,10 @@ def subgraph_from_entity_records(records: list[dict[str, Any]]) -> dict[str, Any
         if key is None:
             return None
         nid = node_id(label, str(key))
-        if nid not in nodes and len(nodes) < settings.graph_node_limit:
+        if nid not in nodes:
+            if len(nodes) >= cap:
+                truncated = True
+                return nid
             nodes[nid] = {
                 "id": nid,
                 "type": label,
@@ -100,7 +108,16 @@ def subgraph_from_entity_records(records: list[dict[str, Any]]) -> dict[str, Any
             link(hid, sid, "HOLDS")
         if sid and secid:
             link(sid, secid, "BELONGS_TO")
-        if len(nodes) >= settings.graph_node_limit:
+        if len(nodes) >= cap:
             truncated = True
 
-    return {"nodes": list(nodes.values()), "edges": list(edges.values()), "truncated": truncated}
+    if len(records) > 0 and len(nodes) >= cap:
+        truncated = True
+
+    return {
+        "nodes": list(nodes.values()),
+        "edges": list(edges.values()),
+        "truncated": truncated,
+        "view": "complete" if cap > settings.graph_node_limit else "partial",
+        "node_limit": cap,
+    }
