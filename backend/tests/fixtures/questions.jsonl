@@ -1,0 +1,20 @@
+{"question": "Who owns TCS?", "intent": "STOCK_HOLDERS", "entities": {"symbol": "TCS"}}
+{"question": "Which customers hold TCS?", "intent": "STOCK_HOLDERS", "entities": {"symbol": "TCS"}}
+{"question": "Who owns both TCS and Infosys?", "intent": "MULTI_STOCK_HOLDERS", "entities": {"symbols": ["TCS", "INFY"]}}
+{"question": "Customers owning TCS and INFY", "intent": "MULTI_STOCK_HOLDERS", "entities": {"symbols": ["TCS", "INFY"]}}
+{"question": "Who is highly exposed to IT?", "intent": "SECTOR_EXPOSURE", "entities": {"sector": "IT"}}
+{"question": "IT sector exposure for customers", "intent": "SECTOR_EXPOSURE", "entities": {"sector": "IT"}}
+{"question": "What happens if TCS drops 10%?", "intent": "STOCK_IMPACT", "entities": {"symbol": "TCS", "change_percent": -10}}
+{"question": "TCS falls 10 percent impact", "intent": "STOCK_IMPACT", "entities": {"symbol": "TCS", "change_percent": -10}}
+{"question": "What happens if the IT sector drops 10%?", "intent": "SECTOR_IMPACT", "entities": {"sector": "IT", "change_percent": -10}}
+{"question": "IT sector down 10%", "intent": "SECTOR_IMPACT", "entities": {"sector": "IT", "change_percent": -10}}
+{"question": "Explain Rahul Sharma's exposure", "intent": "CUSTOMER_EXPOSURE", "entities": {"customer_name": "Rahul Sharma"}}
+{"question": "Explain Rahul Sharma", "intent": "CUSTOMER_EXPOSURE", "entities": {"customer_name": "Rahul Sharma"}}
+{"question": "Show portfolios for WIPRO", "intent": "UNKNOWN", "entities": {}}
+{"question": "Should I sell TCS?", "intent": "UNKNOWN", "entities": {}}
+{"question": "What is the weather?", "intent": "UNKNOWN", "entities": {}}
+{"question": "Predict Tesla stock", "intent": "UNKNOWN", "entities": {}}
+{"question": "Which customers own WIPRO?", "intent": "STOCK_HOLDERS", "entities": {"symbol": "WIPRO"}}
+{"question": "Find TCS investors", "intent": "STOCK_HOLDERS", "entities": {"symbol": "TCS"}}
+{"question": "Simulate TCS -10%", "intent": "STOCK_IMPACT", "entities": {"symbol": "TCS", "change_percent": -10}}
+{"question": "Banking sector exposure", "intent": "SECTOR_EXPOSURE", "entities": {"sector": "Banking"}}
